@@ -1,0 +1,303 @@
+    program CellGWD;
+{$DEFINE SMART}
+{$I SRL-6/SRL.simba}
+
+const
+  Healing_Blade = '9';
+  Quake = [11];
+  Hurricane = [12];
+  combo1 = '----9-==9';
+  combo2 = '==-----';
+  combo3 = '0===--';
+
+var
+  r: integer;
+
+procedure declarePlayers();
+begin
+  players.setup(['YOURUSERNAMEHERE'], 'YOURARMYNAMEHERE');
+  currentPlayer := 0;
+  disableIPScreenshots:= true;
+  // this part is specific player settings, and will be different for every script
+
+  // this is to setup "Account1"
+  with players[0] do
+  begin
+    integers[0] := 50;
+    integers[1] := 25;
+    booleans[0] := true;
+    world := 58;
+  end;
+end;
+Procedure MiniBreaker;
+Begin
+
+  Case Random (100) Of
+    1: Wait(40000 + random(7400));
+    2: Wait(25500 + random(8550));
+    3: Wait(60040 + random(6759));
+    4: Wait(20400 + random(2549));
+
+  end;
+end;
+procedure antiBan();
+
+begin
+
+  writeLn('Engaging in antiban procedure..  | CELL ');
+
+case random(3300)of
+   351..427: sleepAndMoveMouse(random(1427,4578));
+   428..475: begin
+               wait(4578+random(20471));
+               pickUpMouse();
+             end;
+   476..511: smallRandomMouse();
+   512..750: begin
+                case random(11)of
+                0..8:randomCameraAngle(MS_ANGLE_HIGH);
+                9..10: randomCameraAngle(MS_ANGLE_low);
+                end;
+              end;
+   1125..1174: randomGameTab();
+   1125..1191: randomGameTab(true);
+   1192..1425: mouseMovingObject();
+   1426..1627: begin
+                 case random(14)of
+                 0..4: hoverSkill(skill_defence);
+                 5..6: hoverSkill(skill_range);
+                 7: hoverSkill(skill_hitpoints);
+                 8..14: begin
+                           case random(17) of
+                               0..11: begin
+                                         hoverSkill(skill_defence);
+                                         wait(random(1247,3245));
+                                         hoverSkill(skill_attack);
+                                         case random(4) of
+                                           0..2: exit;
+                                           3: hoverRandomSkill();
+                                         end;
+                                      end;
+                               12..16: hoverRandomSkill();
+                           end;
+                        end;
+                 end;
+               end;
+   1628..1642: hoverOnlineFriend();
+   1643..1712: boredHuman(false);
+   1713..1865: begin
+                 case random(17) of
+                  0..1: mouseOffClient(4);
+                  2..11: mouseOffClient(3);
+                  12..16: mouseOffClient(0);
+                 end;
+                 wait(random(456,4556));
+                 case random(47) of
+                  42..46: minimap.setangle(random(360));
+                 end;
+               end;
+   1866..1900: begin
+                  wait(random(258,475));
+                  minimap.setangle(trunc(minimap.getangledegrees())+random(-30,30));
+               end;
+   1713..1791:  randomrclickitem();
+   1900..1950:  scrollMouse((random(2000)+450),(random(2000)+450), random(60));
+   end;
+end;
+function abilityReady(slot: integer): boolean;
+begin
+  if not isLoggedIn then Exit;
+
+  result := false;
+
+  if actionBar.getAbilityCooldown(slot) > 90 then
+    result := true;
+end;
+function chooseAbility : integer;
+begin
+  if not isLoggedIn then Exit;
+
+  if (actionBar.getAdrenalinePercent() >= 50) then
+  begin
+    if abilityReady(11) then
+    begin
+      exit(11);
+    end
+    else if abilityReady(12) then
+    begin
+      exit(12);
+    end
+    else
+    begin
+      if actionbar.getHPPercent > 80 then
+      begin
+        if actionbar.getAbilityCooldown(12) > 75 then exit(12);
+      end else
+        exit(9);
+    end
+  end
+  case random(15) of
+    0..3: result := 12;
+    4..7: result := 11;
+    8..10: result := 13;
+  end
+end;
+
+function shouldHeal(): boolean;
+var
+  pct: Integer;
+begin
+  result := False;
+  pct := randomRange(70, 85);
+  if actionBar.getHPPercent < pct then
+  begin
+    writeln('healing soon');
+    result := True
+  end
+end
+
+procedure heal();
+var
+  i: Integer;
+  j: Integer;
+begin
+  j := 0
+  if shouldHeal() then
+  begin
+  writeLn('healing');
+    i := randomRange(1, 4);
+    if random(10) < 5 then
+    begin
+      repeat
+         SendKeys(Healing_Blade, 50+Random(150), 30+Random(200));
+         Wait(RandomRange(200, 350));
+         writeln('pressed buttons');
+         inc(j);
+      until j = i;
+    end else
+      actionbar.clickSlot(9);
+  end
+  smallRandomMouse();
+end
+
+procedure threshold();
+begin
+  if not shouldHeal() and (actionBar.getAdrenalinePercent > 50) then
+  begin
+    if actionbar.clickSlot(chooseAbility) then
+    begin
+      smallRandomMouse();
+      writeln('threshold');
+      wait(RandomRange(500, 2000));
+    end
+  if random(10) = 5 then actionbar.clickSlot(12);
+  end
+end
+
+procedure randomAbility();
+var
+  i: Integer;
+begin
+  i := randomRange(1, 9);
+  actionbar.clickSlot(i);
+  writeln('random ability');
+end
+
+procedure combo();
+begin
+  if (actionBar.getAdrenalinePercent = 100) then
+  begin
+    case random(10) of
+      0..3: SendKeys(combo1, 50+Random(150), 30+Random(200));
+      4..7: SendKeys(combo2, 50+Random(150), 30+Random(200));
+      8..10: SendKeys(combo3, 50+Random(150), 30+Random(200));
+    end
+    writeln('doing combos');
+  end
+end
+
+function attack(): boolean;
+
+var
+  x, y, i: integer;
+  colours: TIntegerArray;
+
+begin
+result := False;
+colours := [8161109, 14470575, 6572688, 4142957, 3225212];
+
+  for i := 0 to (length(colours) - 1) do
+  begin
+    If  FindColorTolerance(x, y, colours[i] , 50, 50, 576, 350, 3) then
+        begin
+          clickmouse(x,y,mouse_right);
+          if chooseOption.select(['k Ork']) then exit(True);
+          wait(randomrange(2534, 4320));
+        end
+  End
+  heal;
+  Wait(RandomRange(2500, 4500));
+
+end;
+procedure failSafe();
+begin
+
+  if (actionBar.getPrayerPercent < 80) and  (actionBar.getPrayerPercent > 0)then
+  begin
+    repeat
+    until attack;
+  end
+
+
+  if (actionBar.getPrayerPercent = 0) or (actionBar.getHPPercent < 30) then
+  begin
+    wait(5000);
+    if (actionBar.getAdrenalinePercent = 0) or (actionBar.getHPPercent < 30) then
+    begin
+      writeln('stopping');
+      terminateScript;
+    end
+  end
+
+
+end
+procedure mainLoop();
+begin
+  heal;
+  wait(randomrange(1000, 3500));
+  threshold;
+  wait(randomrange(100, 1000));
+  randomability;
+  wait(randomrange(500, 1500));
+  failsafe;
+  wait(randomrange(350, 2000));
+  minibreaker;
+  combo;
+  if random (50) = 5 then antiban;
+end
+
+procedure setUp();
+begin
+  If Not Players[CurrentPlayer].Login Then
+  Begin
+    players[currentPlayer].login();
+  end;
+  DisableSRLDebug:=True;
+  exitTreasure();
+  closePollWindow();
+  MiniMap.ClickCompass;
+end
+
+begin
+  ClearDebug;
+  DeclarePlayers;
+  smartPlugins := ['opengl32.dll'];
+  smartshowconsole := false;
+  SetupSRL;
+  repeat
+    mainLoop;
+    if random(5) = 3 then mouseOffClient(OFF_CLIENT_RANDOM);
+    if random(75) = 25 then typeStuffPublic;
+    if random(50) = 25 then typeStuffCC;
+  until false;
+end.

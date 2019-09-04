@@ -1,0 +1,1105 @@
+program Ns;
+{$DEFINE SMART}
+{$I SRL-6/SRL.simba}
+{$i SRL-6/LIB/MISC/SRLPLAYERFORM.Simba}
+
+const
+  //goldLockDTM := DTMFromString ('mWAAAAHicY2FgYBBmYmCQAGIRIOYF4h0MELwHiLcD8eVJkgy8wuIMwpLyYCzJgAoY0TAIAABBCAWk');
+  MiniCenter := BitmapFromString (3, 3, 'meJz7/x8nAAB4sBrm');
+  SafeBMP := BitmapFromString (12, 11, 'meJwzcfA0IRqZV21ERshSDAwMEA' + 'UQNhBgKoMLQhQjmwkXwaMGbhRWNWhGEaMG02S4IMQLuBwA9yae8MG' + 'qAO5+OEAWBwA1t2m1');
+  MultiS := BitmapFromString (4, 6, 'meJwrrixgZGb8+f0nENna22IyiisL' + '4AwgQmbMXrkMwgAiAPPnJZs=');
+  PopUp1 := BitmapFromString (4, 4, 'meJwLPvEpcMNXIAo+8cly0WOH/V+B' + 'CMhQmvdVY+MHIAIygEio9RkQARkA1a8cyw==');
+  PopUp2 := BitmapFromString (4, 4, 'meJwTFpUQlZCBIDFZJTiSVdGSUlQF' + 'kkCkoKYLRwCAlQXd');
+  PopUp3 := BitmapFromString (4, 4, 'meJwL2PfTc+s3IArY99N85TerzT+B' + 'CMhAZqss+gFHAOH1Hd8=');
+  ATTACK_USER := ['Attack ', 'k Homi', 'k lNeg', 'k Exic', 'k Rebl', 'k Neg', 'k Barp', 'k Evan', 'k Neg',
+              'k Zap', 'k War'];
+  words := ['Gla Gla'];
+
+var
+  i, x, y, w, bar, AL, MiniTry, UltiSlot, ThreshSlot: integer;
+  Attack, Multi, Pond, typestuff, East: boolean;
+  AntiBanMarker, LuredTimer: TTimeMarker;
+  anglez: extended;
+  AntiLureTimer, ThreshTimer, UltiTimer: TCountDown;
+
+procedure declarePlayers();
+var
+  i: Integer;
+begin
+  players.setup(playerForm.players);
+  currentPlayer := 0;
+  disableIPScreenshots := true;
+  for i := 0 to high(players) do
+    with players[i] do
+    begin
+      w := strToInt(playerForm.players[0].settings[0]);
+      Bar := strToInt(playerForm.players[0].settings[1]);
+      UltiSlot := strToInt(playerForm.players[0].settings[2]);
+      ThreshSlot := strToInt(playerForm.players[0].settings[3]);
+      Attack := strToBool(playerForm.players[0].settings[4]);
+      Multi := strToBool(playerForm.players[0].settings[5]);
+      Pond := strToBool(playerForm.players[0].settings[6]);
+      East := strToBool(playerForm.players[0].settings[7]);
+      TypeStuff := strToBool(playerForm.players[0].settings[8]);
+      world := w;
+    end;
+end;
+
+procedure initPlayerForm();
+begin
+  with playerForm do
+  begin
+    name := '';
+    editBoxLabels := ['World', 'Action Bar Number', 'Ultimate Ability Slot', 'Threshold Ability Slot'];
+    editBoxDefaults := ['', '', '', ''];
+    checkBoxLabels := ['Attack Players', 'Run to Multi', 'Run to Pond', 'Run to South Pond', 'Type Stuff'];
+    checkBoxDefaults := ['False', 'False', 'False', 'False', 'False'];
+  end;
+end;
+
+procedure TPlayer.__respondToPopup(errorMessage: TVariantArray; tries: integer; out reachedMax: boolean);
+override;
+begin
+  typeByte(VK_ESCAPE);
+  if (tries > errorMessage[2]) then
+  begin
+    print('Responding with action: ' + errorMessage[3], TDebug.SUB);
+    case errorMessage[3] of
+      'Terminate': WriteLn('Canceling Termination');
+      'Set_World': self.world := w;
+      'Next_Player_F':
+        begin
+          players.next(false, false);
+          self := players[currentPlayer];
+        end;
+      'Next_Player_T':
+        begin
+          players.next(true, false);
+          self := players[currentPlayer];
+        end;
+      'Set_Member':
+        begin
+          self.isMember := true;
+          self.world := 0;
+        end;
+      'Set_Non-Member':
+        begin
+          self.isMember := false;
+          self.world := 0;
+        end;
+      'Reload_Client':
+        begin
+          if (@ SRL_Events[EVENT_RS_UPDATE] <> nil) then
+          begin
+            print('RS Update: Going to call EVENT_RS_UPDATE procedure', TDebug.WARNING);
+            SRL_Events[EVENT_RS_UPDATE]();
+          end;
+        end;
+    end;
+    reachedMax := true;
+  end;
+  if (errorMessage[1] > 0) then
+  begin
+    print('Waiting ' + toStr(errorMessage[1]) + 'ms before next attempt', TDebug.SUB);
+    wait(errorMessage[1] + random(2000, 4000));
+  end;
+end;
+
+function TPlayer.login(): boolean;
+override;
+var
+  tries, triez, SkipPlay: integer;
+  p: TPoint;
+  reachedMaxTries: boolean;
+  LoginTimer: TTimeMarker;
+begin
+  print('TPlayer.login()', TDebug.HEADER);
+  SkipPlay := 0;
+  repeat
+    if isLoggedIn() then
+    begin
+      print('Already logged in');
+      result := true;
+      exit;
+    end;
+    if self.loginToLobby() then
+    begin
+      if (self.world <> - 1) then
+        if (self.world = 0) then
+          lobbyWorlds.selectRandomWorld(self.isMember)
+        else if lobby.quickSelectWorld(self.world) then
+        begin
+          skipPlay := 2;
+        end
+      else if lobbyWorlds.selectWorld(self.world) then
+        skipPlay := 1;
+      if (skipPlay = 1) then
+      begin
+        lobby.findPlayButton(p);
+        mouse(p.rand(randomRange( - 50, 50), randomRange( - 10, 10)), MOUSE_LEFT);
+      end;
+      if (SkipPlay <> 1) and (SkipPlay <> 2) then
+      begin
+        LoginTimer.Reset();
+        LoginTimer.Start();
+        repeat
+          if not Lobby.IsOpen() and not isloggedin() then
+            players[currentPlayer].loginToLobby();
+          if Lobby.IsOpen() then
+            players[currentPlayer].switchToWorld(w);
+          Inc(Triez);
+        until not Lobby.IsOpen() or (Triez >= 5) or (LoginTimer.GetTime() > 60000) or isloggedin()
+      end;
+      result := self.__handleLoginPopup(inc(tries), true, reachedMaxTries);
+      if reachedMaxTries then
+        tries := 1;
+    end;
+  until isloggedin() if self.worked.paused then
+    self.worked.start();
+end;
+
+procedure TMufasaBitmap.drawBox(box: TBox; fill: boolean; color: TColor);
+override;
+var
+  tpa: TPointArray;
+begin
+  if (not fill) then
+  begin
+    try
+      tpa := edgeFromBox(box);
+    except
+      tpa := [point(box.x1, box.y1)];
+    finally
+      try
+        self.drawTPA(tpa, color);
+      except
+        exit;
+      end;
+    end
+  end
+  else
+    self.rectangle(box, color);
+end;
+
+procedure TMufasaBitmap.drawEllipse(const pnt: TPoint; const xRadius, yRadius: integer; const fill: boolean; const color: TColor);
+override;
+var
+  tpa: TPointArray;
+begin
+  try
+    tpa := tpaFromEllipse(pnt.x, pnt.y, xRadius, yRadius);
+    if (fill) then
+      fillEllipse(tpa);
+    self.drawTPA(tpa, color);
+  except
+    exit;
+  end;
+end
+
+function Lobbys(): boolean;
+var
+  p: TPoint;
+begin
+  Result := (minimap.findSymbol(p, MM_SYMBOL_BANK, minimap.getBounds)) or (minimap.findSymbol(p, MM_SYMBOL_MINIGAME, minimap.getBounds));
+end
+
+function Walking(Waitz: boolean): boolean;
+var
+WalkingTimer: TCountDown;
+begin
+  if not (Waitz) then Result := Minimap.waitPlayerMoving(180, 10000) or Minimap.waitFlag();
+  if (waitz) and Minimap.waitPlayerMoving(180, 10000) or Minimap.waitFlag(0) then
+  begin
+  WalkingTimer.setTime(10000);
+    repeat
+    until not Minimap.waitPlayerMoving(180, 10000) or Minimap.waitFlag(0) or WalkingTimer.isFinished()
+      begin
+      wait(RandomRange(800, 900));
+      end
+  end
+end
+
+function Safe(): boolean;
+var
+  p: TPoint;
+  Boundary, Boundary1: TBox;
+begin
+  Boundary := GetClientBounds();
+  Boundary1 := inttobox(Boundary.x1, Boundary.y1, Boundary.x2, Boundary.y1 + 60);
+  Result := Findbitmaptolerancein(SafeBMP, x, y, Boundary1, 5);
+end
+
+function Combat(): boolean;
+begin
+  Result := targetInfo.hasTarget();
+end
+
+function GetMiniCenterBox(Extend: boolean; Custom: boolean; Int1: integer): TBox;
+begin
+  if FindBitmapTolerancein(MiniCenter, x, y, Minimap.getBounds(), 0) then
+  begin
+    FindBitmapTolerancein(MiniCenter, x, y, Minimap.GetBounds(), 0);
+    if not (Extend) and not (Custom) then
+      Result := inttobox(x - 15, y - 15, x + 15, y + 15);
+    if (Extend) and not (Custom) then
+      Result := inttobox(x - 50, y - 50, x + 50, y + 50);
+    if (Custom) then
+      Result := inttobox(x - int1, y - int1, x + int1, y + int1);
+  end
+end
+
+function GetRocks(SearchBox: TBox): integer;
+const
+  RockCol := 5592661;
+var
+  Tpa1: TPointArray;
+begin
+  FindColorsSpiralTolerance(x, y, Tpa1, RockCol, SearchBox, 0);
+  Result := Length(TPA1);
+end
+
+function InCombatWith(): string;
+var
+  Box: TBox;
+  BoxAR: TPointArray;
+begin
+exit(TargetInfo.getName());
+end
+
+procedure UseAbilities();
+begin
+if not actionbar.getCurrentBar() = bar then actionbar.switchToBar(Bar, false);
+if actionbar.getCurrentBar() = bar then
+begin
+if actionbar.getAdrenalinePercent() = 100 then
+begin
+if not UltiTimer.isFinished() then exit;
+case Random(50) of
+0..45: actionbar.clickSlot(UltiSlot, MOUSE_LEFT);
+46..50:
+begin
+actionbar.clickSlot(UltiSlot, MOUSE_RIGHT);
+ChooseOption.Select(['Activate'], RandomRange(250, 500));
+end
+end
+UltiTimer.setTime(32000);
+end
+if actionbar.getAdrenalinePercent() >= 50 then
+begin
+if not ThreshTimer.isFinished() then exit;
+case Random(50) of
+0..45: Actionbar.clickSlot(ThreshSlot, MOUSE_LEFT);
+46..50:
+begin
+actionbar.ClickSlot(ThreshSlot, MOUSE_RIGHT);
+ChooseOption.Select(['Activate'], RandomRange(250, 500));
+end
+end
+ThreshTimer.setTime(32000);
+end
+end
+end
+
+function InCombat(): boolean;
+begin
+    if Combat() then
+    UseAbilities();
+end;
+
+function AtPond(): boolean;
+begin
+  Result := FindBitMapToleranceIn(MultiS, x, y, Mainscreen.getBounds(), 0) and FindColorTolerance(x, y, 4741165, Minimap.getBounds(), 5) and (GetRocks(GetMiniCenterBox(false, true, 60)) > 25) and findColorTolerance(x, y, 1256501, GetMiniCenterBox(True, false, 60), 10) and not findColorTolerance(x, y, 1079226, minimap.getBounds(), 0);
+end
+
+function AtMulti(): boolean;
+begin
+Result := FindBitMapToleranceIn(MultiS, x, y, Mainscreen.getBounds(), 0) and not findColorTolerance(x, y, 1079226, GetMiniCenterBox(True, false, 50), 0);
+end
+
+function AtFront(): boolean;
+begin
+  Result := not findColorTolerance(x, y, 928052, GetMiniCenterBox(False, True, 35), 4) and not FindBitMapToleranceIn(MultiS, x, y, Mainscreen.getBounds(), 0) and (GetRocks(GetMiniCenterBox(false, true, 40)) > 5) and FindColorTolerance(x, y, 0, GetMiniCenterBox(True, false, 50), 0);
+end
+
+function AtSide(): boolean;
+const
+  Tree_Col := 1256501;
+  Pond_Col := 4741165;
+var
+  Box: TBox;
+  x, y: integer;
+  p: TPoint;
+begin
+  p := minimap.GetBounds().GetMiddle();
+  Box := inttobox(p.x - 40, p.y - 40, p.x + 40, p.y + 40);
+  Result := FindColorTolerance(x, y, Tree_Col, Box, 10) and FindColorTolerance(x, y, Pond_Col, Minimap.getBounds(), 5) and not AtMulti();
+end
+
+function GetLocation(): string;
+begin
+  if Lobbys() then
+    Exit('Clan Wars Lobby');
+  if Safe() then
+    Exit('Safe Zone');
+  if AtFront() then
+    exit('Front');
+  if AtSide() then
+    exit('Side');
+  if AtMulti() then
+    Exit('Multi');
+  if AtPond() then
+    Exit('Pond');
+  if lobby.isOpen() then
+    Exit('Runescape Lobby');
+  if not isloggedin() and not lobby.isOpen() then
+    exit('Log-in Screen');
+exit('');
+end
+
+function AntiLure(): Boolean;
+begin
+  if not (Multi) and not (Pond) and not (East) then
+  begin
+    if not AtFront() then
+    begin
+      WriteLn('We are not at Front, increasing lure integer');
+      Inc(AL);
+    end
+  end
+  else if (Multi) then
+  begin
+    if not AtMulti() then
+    begin
+      Writeln('We are not at Multi, increasing lure integer');
+      inc(AL);
+    end
+  end
+  else if (Pond) then
+  begin
+    if not AtPond() then
+    begin
+      Writeln('We are not at Pond, increasing lure integer');
+      Inc(AL);
+    end
+  end
+  else if (East) then
+  begin
+    if not AtSide() then
+    begin
+      WriteLn('We are not at East, increasing lure integer');
+      inc(AL);
+    end
+  end
+end
+
+function GetDegrees(): extended;
+begin
+  Result := round(minimap.getAngleDegrees());
+end
+
+function GetDirection(Accurate: boolean): string;
+begin
+case Accurate of
+true:
+begin
+  if (inRange(GetDegrees(), 0, 10)) or (inRange(GetDegrees(), 350, 360)) then
+    exit('north');
+  if (inRange(GetDegrees(), 80, 100)) then
+    exit('west');
+  if (inRange(GetDegrees(), 260, 280)) then
+    exit('east');
+  if (inRange(GetDegrees(), 170, 190)) then
+    exit('south');
+exit('unknown');
+end
+false:
+begin
+  if (inRange(GetDegrees(), 0, 35)) or (inRange(GetDegrees(), 325, 360)) then
+    Result := 'north';
+  if (inRange(GetDegrees(), 35, 145)) then
+    result := 'west';
+  if (inRange(GetDegrees(), 215, 325)) then
+    Result := 'east';
+  if (inRange(GetDegrees(), 145, 215)) then
+    result := 'south';
+end
+end
+end
+
+function CompassRange(Int1, Int2: integer; OV: boolean): boolean;
+var
+  Rand, Results: integer;
+begin
+  if (inRange(GetDegrees(), Int1, 360)) or (inRange(GetDegrees(), 0, int2)) and (int1 > int2) then
+    inc(Results);
+  if (inRange(GetDegrees(), int1, int2)) and (int1 < int2) then
+    inc(Results);
+  if (Results > 0) then Exit(True);
+  case (OV) of
+    True:
+      begin
+        case Random(50) of
+          0..25: Rand := 39;
+          26..50: Rand := 37;
+        end
+        if (int1 > int2) then
+        begin
+          KeyDown(Rand);
+          repeat
+          until (inRange(GetDegrees(), Int1, 360)) or (InRange(GetDegrees(), 0, int2))
+          begin
+            KeyUp(Rand);
+          end
+        end
+        if (int1 < int2) then
+        begin
+          KeyDown(Rand);
+          repeat
+          until (inRange(GetDegrees(), int1, int2))
+          begin
+            KeyUp(Rand);
+          end
+        end
+      end
+    False: Exit(false);
+  end;
+end
+
+function MiniWalk(): boolean;
+var
+  P, z: TPoint;
+  TPA1: TPointArray;
+  clickbox: TBox;
+begin
+  z := minimap.GetBounds().GetMiddle();
+  clickBox := inttobox(z.x - 10, z.y - 25, z.x + 10, z.y - 10);
+  TPA1 := minimap.getDots(MM_DOT_PLAYER, minimap.getBounds());
+  if (MiniTry > 0) or not (length(tpa1) >= 2) then
+  begin
+    case random(50) of
+      0..25: Minimap.clickCompass();
+      26..50: CompassRange(340, 20, True);
+    end
+    MouseBox(ClickBox, MOUSE_LEFT);
+  end
+  if (MiniTry = 0) and (length(Tpa1) >= 2) then
+  begin
+    p := TPA1.getMiddle();
+    Mouse(P, MOUSE_LEFT);
+  end
+  Walking(true);
+  if not Safe() then
+  begin
+  MiniTry := 0;
+  Exit(True);
+  end
+  else
+  inc(MiniTry);
+  Exit(False);
+  end
+
+function ClickMiddle(Area: TBox; Click: boolean): integer;
+var
+  tpa1: TPointArray;
+  p: TPoint;
+begin
+  tpa1 := minimap.getDots(MM_DOT_PLAYER, Area);
+  if not (click) then
+    Result := Length(Tpa1);
+  if (Length(Tpa1) > 1) and (click) then
+  begin
+    p := tpa1.GetMiddle();
+    Mouse(p, MOUSE_LEFT);
+    exit(Length(tpa1));
+  end
+end
+
+procedure RunOther;
+var
+  Path: TPointArray;
+  ClickArea, l, box: TBox;
+  Attempt, int, int1: integer;
+  p: TPoint;
+begin
+  p := Minimap.GetBounds().GetMiddle();
+  int := 0;
+  if (GetDirection(True) = 'unknown') then minimap.ClickCompass();
+  wait(RandomRange(200, 450));
+  if (Multi) then
+  begin
+    Writeln('Attempting to walk to Multi');
+    repeat
+      case GetDirection(false) of
+        'north':
+          begin
+            if (int = 0) then
+              ClickArea := inttobox(p.x - 20, p.y - 55, p.x + 10, p.y - 40);
+            if (int = 1) then
+              ClickArea := inttobox(p.x - 25, p.y - 75, p.x + 10, p.y - 60);
+            inc(int);
+          end
+        'west':
+          begin
+            if (int = 0) then
+              ClickArea := inttobox(p.x + 40, p.y - 20, p.x + 55, p.y + 10);
+            if (int = 1) then
+              ClickArea := inttobox(p.x + 60, p.y - 25, p.x + 75, p.y + 10);
+            smartimage.drawBox(ClickArea, False, CLLime);
+            inc(int);
+          end
+        'east':
+          begin
+            if (int = 0) then
+              ClickArea := inttobox(p.x - 55, p.y - 10, p.x - 40, p.y + 20);
+            if (int = 1) then
+              ClickArea := inttobox(p.x - 75, p.y - 10, p.x - 60, p.y + 25);
+            inc(int);
+          end
+        'south':
+          begin
+            if (int = 0) then
+              ClickArea := inttobox(p.x - 10, p.y + 40, p.x + 20, p.y + 55);
+            if (int = 1) then
+              ClickArea := inttobox(p.x - 10, p.y + 60, p.x + 25, p.y + 75);
+            inc(int);
+          end
+      end
+      MouseBox(ClickArea, MOUSE_LEFT);
+      walking(True);
+      inc(Attempt);
+      if (Attempt = 2) and not AtMulti() then inc(AL);
+    until AtMulti() or (Attempt = 2)
+  end
+  if (Pond) then
+  begin
+  Writeln('Attempting to walk to Pond');
+    repeat
+      case GetDirection(false) of
+        'north':
+          begin
+            if (int = 0) then
+              ClickArea := inttobox(p.x + 60, p.y - 45, p.x + 80, p.y - 25);
+            if (int = 1) then
+            begin
+              ClickArea := inttobox(p.x - 5, p.y - 90, p.x + 20, p.y - 80);
+              if ClickMiddle(ClickArea, true) then
+                inc(int1);
+            end
+            inc(int);
+          end
+        'west':
+          begin
+            if (int = 0) then
+              ClickArea := inttobox(p.x + 25, p.y + 60, p.x + 45, p.y + 80);
+            if (int = 1) then
+            begin
+              ClickArea := inttobox(p.x + 70, p.y - 10, p.x + 80, p.y + 15);
+              if ClickMiddle(ClickArea, true) then
+                inc(int1);
+            end
+            inc(int);
+          end
+        'east':
+          begin
+            if (int = 0) then
+              ClickArea := inttobox(p.x - 45, p.y - 80, p.x - 25, p.y - 60);
+            if (int = 1) then
+            begin
+              ClickArea := inttobox(p.x - 80, p.y - 15, p.x - 70, p.y + 10);
+              if ClickMiddle(ClickArea, true) then
+                inc(int1);
+            end
+            inc(int);
+          end
+        'south':
+          begin
+            if (int = 0) then
+              ClickArea := inttobox(p.x - 80, p.y + 25, p.x - 60, p.y + 45);
+            if (int = 1) then
+            begin
+              ClickArea := inttobox(p.x - 15, p.y + 70, p.x + 10, p.y + 80);
+              if ClickMiddle(ClickArea, true) then
+                inc(int1);
+            end
+            inc(int);
+          end
+      end
+      MouseBox(ClickArea, MOUSE_LEFT);
+      Walking(True);
+      inc(Attempt);
+      if (Attempt = 2) and not atPond() then inc(AL);
+    until AtPond() or (Attempt = 2)
+  end
+  if (East) then
+  begin
+    p := Minimap.getBounds().GetMiddle();
+    WriteLn('Attempting to walk to East');
+      case GetDirection(false) of
+        'north': Box := inttobox(p.x + 65, p.y - 35, p.x + 84, p.y - 10);
+        'west': Box := inttobox(p.x + 10, p.y + 58, p.x + 35, p.y + 84);
+        'east': Box := inttobox(p.x - 35, p.y - 84, p.x - 10, p.y - 58);
+        'south': Box := inttobox(p.x - 84, p.y + 10, p.x - 58, p.y + 35);
+      end
+      MouseBox(Box, MOUSE_LEFT);
+      Walking(True);
+    end
+  end
+
+function MainWalk(): boolean;
+var
+  TPA1, TPA2: TPointArray;
+  TBox1: TBox;
+  str1 := ['ead', 'ick', 'ttack'];
+begin
+  TPA1 := Minimap.GetDots(MM_DOT_PLAYER, Minimap.GetBounds());
+  if (Length(TPA1) >= 2) then
+  begin
+    TPA2 := Minimap.pointsToMainscreen(TPA1);
+    TBox1 := TPA2.GetBounds();
+    MouseBox(TBox1, MOUSE_MOVE);
+    if not isMouseOverText(Str1, 1500) then
+    begin
+      FastClick(MOUSE_LEFT);
+    end
+    if isMouseOverText(Str1, 1500) then
+    begin
+      FastClick(MOUSE_RIGHT);
+      ChooseOption.select(['alk'], 4000);
+    end
+    Walking(True);
+    if not (Safe) then exit(True);
+  end
+  else
+    MiniWalk();
+end
+
+procedure Pray; forward;
+
+function InSafe(): boolean;
+begin
+  case Random(50) of
+    0..25: Pray;
+  end
+  if (Multi) or (Pond) or (East) then
+  begin
+    WriteLn('Attempting to run to destination');
+    RunOther;
+  end
+  else if not (Multi) and not (Pond) and not (East) then
+  begin
+    case Random(50) of
+      0..39: MiniWalk();
+      40..50: MainWalk();
+    end
+  end
+  Pray;
+end
+
+procedure MiniBreaker;
+begin
+  case Random(4) of
+    1: Wait(10000 + random(7400));
+    2: Wait(5500 + random(9550));
+    3: Wait(1040 + random(5759));
+    4: Wait(4400 + random(1549));
+  end;
+end;
+
+procedure Pray;
+begin
+  Wait(RandomRange(0, 1200));
+  if (ActionBar.getPrayerPercent() > 0) and not actionbar.isiconEnabled(AB_BAR_PRAYER) then
+  begin
+      case random(40) of
+        0..26: actionBar.mouseIcon(AB_BAR_PRAYER, MOUSE_LEFT);
+        26..40:
+          begin
+            actionBar.mouseIcon(AB_BAR_PRAYER, MOUSE_RIGHT);
+            chooseOption.select(['on'], RandomRange(400, 800));
+            wait(RandomRange(0, 2000));
+          end;
+      end
+  end;
+end;
+
+procedure ClickCenter(DotType: integer);
+var
+  P: TPoint;
+  Tpa1: TPointArray;
+begin
+  TPA1 := minimap.getDots(DotType, minimap.getBounds());
+  if (length(Tpa1) >= 2) then
+  begin
+    p := TPA1.getMiddle();
+    Mouse(P, MOUSE_LEFT);
+  end
+end;
+
+procedure SmallAntiBan;
+begin
+  case random(100) of
+    0..25: SleepAndMoveMouse(GaussRangeInt(500, 4500));
+    26..50: pickUpMouse();
+    51..75: smallRandomMouse();
+    76..100:
+      case random(110) of
+        0..25: MouseOffClient(Random(1));
+        26..50: MouseOffClient(Random(2));
+        51..75: MouseOffClient(Random(3));
+        76..100: MouseOffClient(Random(4));
+      end
+  end;
+end;
+
+procedure AntiLogout;
+var
+  mapSquare: TBox;
+begin
+  WriteLn('Anti-Logout occuring.');
+  case Random(75) of
+    0..25:
+      begin
+        mapSquare := Mainscreen.getBounds();
+        MouseSpeed := RandomRange(30, 60);
+        mouseBox(mapSquare, MOUSE_Right);
+        case random(50) of
+          0..25:
+            begin
+               (MOUSE_MOVE);
+              Wait(random(2000, 4500));
+            end;
+          26..50:
+            begin
+              pickUpMouse();
+              wait(random(500, 700));
+            end;
+        end;
+      end;
+    26..50:
+      begin
+        mapSquare := Minimap.GetBounds();
+        MouseSpeed := RandomRange(10, 100);
+        mouseBox(mapSquare, MOUSE_RIGHT);
+        case random(50) of
+          0..25:
+            begin
+              wait(random(1000, 2000));
+              smallRandomMouse();
+            end;
+          26..50:
+            begin
+              MouseOffClient(Random(RandomRange(1, 4)));
+            end;
+        end;
+        if Chooseoption.isOpen() then ChooseOption.Close();
+      end;
+    51..75:
+      begin
+        wait(randomRange(100, 10000));
+        FastClick(MOUSE_RIGHT);
+        wait(randomRange(50, 20000));
+        MouseOffClient(Random(RandomRange(1, 4)));
+      end;
+  end;
+end;
+
+procedure PopUpCheck;
+begin
+if isLoggedin() then
+begin
+  if not FindBitMapToleranceIn(Popup1, x, y, Mainscreen.getBounds(), 0) and not FindBitMapToleranceIn(Popup2, x, y, Mainscreen.getBounds(), 0) and not FindBitMapToleranceIn(Popup3, x, y, GetClientBounds(), 0) then
+    exit;
+  if FindBitMapToleranceIn(Popup1, x, y, Mainscreen.getBounds(), 0) then
+    FindBitMapToleranceIn(Popup1, x, y, Mainscreen.getBounds(), 0);
+  if FindBitMapToleranceIn(Popup2, x, y, Mainscreen.getBounds(), 0) then
+    FindBitMapToleranceIn(Popup2, x, y, Mainscreen.getBounds(), 0);
+  if FindBitMapToleranceIn(Popup3, x, y, Mainscreen.getBounds(), 0) then
+    FindBitMapToleranceIn(Popup3, x, y, GetClientBounds(), 0);
+  Mouse(x, y);
+  FastClick(MOUSE_RIGHT);
+  ChooseOption.select(['lose'], 4000);
+end
+end
+
+function CanAttack(): boolean;
+begin
+  Result := isLoggedIn() and not Lobbys() and not Combat() and not Safe() and not (Actionbar.GetHPPercent() = 0);
+end
+
+var
+  X1, Y1: integer;
+
+function Gettarget(): boolean;
+const
+Unwanted_Color := 7696217;
+Unwanted_Color_Tol := 14;
+Wanted_Color := 8083511;
+Wanted_Color_Tol := 50;
+var
+TPA1, TPA2, TPA3, TPA4: TPointArray;
+ATPA1: T2DPointArray;
+TBox1, TBox2, TBox3: TBox;
+l, i: integer;
+begin
+if not CanAttack() then exit;
+try
+Wait(RandomRange(200, 800));//
+WriteLn('Attempting to find Targets');
+findcolorsSpiraltolerance(x, y, tpa1, wanted_color, mainscreen.getBounds(), Wanted_Color_tol);
+if (length(TPA1) > 0) then
+begin
+smartimage.debugTPA(TPA1);
+FindcolorsSpiralTolerance(x, y, tpa2, unwanted_Color, TPA1.getBounds(), Unwanted_Color_Tol);
+if (Length(TPA2) > 0) then
+begin
+smartimage.clear;
+smartimage.debugTPA(TPA2);//
+writeln('Sorting unwanted colors');
+TPA3 := TPA1.clearTPAFrom(TPA2);
+smartimage.clear;
+smartimage.debugTPA(TPA3);
+//TPA1 := TPA1.ClearTPAfrom(TPA2);
+end
+if (Length(TPA3) > 0) then ATPA1 := TPA3.toATPA(25, 25);
+if not (length(TPA3) > 0) then ATPA1 := TPA1.toATPA(25, 25);
+FilterTPAsBetween(ATPA1, 315, 340);   //
+FilterTPAsBetween(ATPA1, 165, 185);   //
+FilterTPAsBetween(ATPA1, 432, 452);   //
+smartimage.clear;
+smartimage.debugATPA(ATPA1);
+l := randomRange(0, Length(ATPA1));
+ATPA1.SortFromMidPoint(ATPA1[l].GetMiddle());
+Mouse(MiddleTPA(ATPA1[i]), MOUSE_MOVE);
+if isMouseOverText(Attack_user, RandomRange(300, 450)) then
+begin
+if CanAttack() then FastClick(MOUSE_LEFT);
+writeln('Found Target');
+exit;
+end else
+fastClick(MOUSE_RIGHT);
+if CanAttack() then
+if chooseoption.select(Attack_user, RandomRange(400, 550)) then
+begin
+writeln('Found Target');
+exit;
+end
+end
+Writeln('Target not found');
+except
+end
+end
+
+
+function TypeThings(): boolean;
+var
+  i: integer;
+begin
+  if not (TypeStuff) then
+    exit(false);
+  try
+    i := random(length(words));
+    TypeSend(words[i], true);
+  except
+    exit(false);
+  finally
+    exit(true);
+  end
+end
+
+
+function InLobby(): boolean;
+const
+PortCol := 10396853;
+PortTol := 4;
+var
+TPA1: TPointArray;
+ATPA1: T2DPointArray;
+j, k, Attempts: integer;
+TBox1: TBox;
+PortalWait: TCountDown;
+begin
+repeat
+FindColorsSpiralTolerance(x, y, TPA1, PortCol, Mainscreen.getBounds(), PortTol);
+if (Length(TPA1) >= 1) then
+begin
+j := RandomRange(0, length(TPA1));
+ATPA1 := TPA1.toATPA(20,20);
+ATPA1.sortFromMidPoint(TPA1[j]);
+TBox1 := GetTPABounds(TPA1);
+k := getPixelShiftAverage(TBox1, 50, 500);
+SmartImage.drawBox(TBox1, false, cllime);
+if (k >= 100) then
+Mouse(MiddleTPA(ATPA1[I]));
+smartimage.clear;
+wait(random(400, 1400));
+if (isMouseOverText(['ree-for-all (safe)'])) then
+begin
+case Random(50) of
+0..40: FastClick(MOUSE_LEFT);
+41..50:
+begin
+FastClick(MOUSE_RIGHT); ChooseOption.Select(['ree-for-all (safe)'], RandomRange(200, 500));
+end
+end
+case Random(50) of
+0..25: Pray;
+end
+Attempts := 0;
+PortalWait.SetTime(18000);
+repeat
+wait(RandomRange(250, 450));
+until PortalWait.isFinished() or Safe() or not Lobbys()
+if not Lobbys() then exit(true);
+end
+end
+inc(Attempts);
+if (Attempts = 5) then CompassRange(340, 20, true);
+if (Attempts = 10) then minimap.clickCompass();
+if (Attempts >= 15) then
+begin
+PopupCheck;
+ClickCenter(MM_DOT_NPC);
+Attempts := 0;
+end
+until not Lobbys() or Safe()
+end
+
+function Location(React: boolean): Integer;
+begin
+  if not isLoggedin() then
+  begin
+    if (React) then
+    begin
+      repeat
+        players[currentPlayer].login();
+      until IsLoggedin()
+    end
+    Result := 0;
+  end
+  if Lobbys() then
+  begin
+    if (React) then
+    begin
+      repeat
+        Inlobby();
+      until not Lobbys()
+    end
+    Result := 1;
+  end
+  if Safe() then
+  begin
+    if (React) then
+    begin
+      repeat
+        InSafe();
+      until not Safe()
+    end
+    Result := 2;
+  end
+  if IsLoggedIn() and not Lobbys() and not Safe() then
+  begin
+    if (React) and (attack) and not Combat() and not Safe() then
+    begin
+      GetTarget();
+    end
+    Result := 3;
+  end
+  if Combat() then
+  begin
+    if (React) then
+    begin
+      InCombat();
+    end
+    Result := 4;
+  end
+end
+
+procedure freeTheDtms();
+begin
+  //freeDTMs([goldlockDTM]);
+  freeBitmaps([SafeBMP, MiniCenter, popup1, popup2, popup3]);
+  smartimage.clear;
+  writeln('Time Ran: ' + timeRunning(TIME_SHORT));
+  smartFreeDrawing();
+end;
+
+procedure pDebug;
+begin
+smartimage.clearArea(Mainscreen.getBounds());
+if isLoggedin() then
+begin
+smartimage.drawText('Current Location: ' + GetLocation(), Point(1, 348), 'UpChars', true, ClLime);
+smartimage.drawText('Current Direction: ' + GetDirection(false), Point(1, 360), 'UpChars', true, ClLime);
+end
+if Combat() then smartimage.drawText('Currently in combat with: ' + inCombatWith(), Point(1, 372), 'UpChars', true, ClLime);
+disguise('Time Running: ' + timeRunning(TIME_SHORT));
+end
+
+procedure MainLoop;
+begin
+  Location(True);
+  pDebug;
+end
+
+begin
+  initPlayerForm();
+  runPlayerForm();
+  if (not playerForm.isScriptReady) then
+  begin
+    terminatescript;
+  end;
+  smartPlugins := ['d3d9.dll'];
+  disableSRLDebug := true;
+  disableSRLLog := true;
+  addOnTerminate('freeTheDTMs');
+  smartEnableDrawing := true;
+  SetupSRL;
+  declarePlayers;
+  AntiBanMarker.Start();
+  AntiLureTimer.SetTime(50000);
+  repeat
+    begin
+      PopUpCheck;
+
+      try
+        mainloop;
+      except
+      end
+
+      if AntiLureTIMER.isFinished() then
+      begin
+      if not Safe() and not lobbys() and isLoggedin() then
+      begin
+        WriteLn('Antilure();');
+        //AntiLure();
+        if (AL > 0) then
+        begin
+          LuredTimer.Reset();
+          LuredTimer.Start();
+          repeat
+            if (LuredTimer.GetTime >= 80000) then wait(310000);
+            if Safe() then MiniWalk();
+            if not Safe() and not Lobbys() then Players[CurrentPlayer].exittolobby();
+          until not isLoggedin() or Lobbys() if not isLoggedin() or Lobbys() then
+            AL := 0;
+        end
+        end
+        AntiLureTimer.SetTime(50000);
+      end
+
+      if AntiBanMarker.getTime > (randomRange(120000, 240000)) then
+      begin
+        if not (attack) then AntiLogout;
+        antibanmarker.reset();
+        antibanmarker.Start();
+        case random(40) of
+          0..30:
+            case (50) of
+              31..50: SmallAntiBan();
+            end
+          31..40: TypeThings;
+        end
+      end;
+    end;
+  until false;
+end.

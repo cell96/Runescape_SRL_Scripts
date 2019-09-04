@@ -1,0 +1,263 @@
+program CellsCookerCW;
+{$DEFINE SMART}
+{$I SRL-6/SRL.simba}
+
+{*******************************************
+ bank preset: maple log first spot inv, rest uncooked food
+ put logs at 13th alot in actionbar
+********************************************}
+//const
+  //MAPLE_LOG := DTMFromString('mbQAAAHicY2VgYHjJxMDwDIh/AvFTIL4DxL2MDAytQNwHxLMYIfwwCx6gaiYULMmACRixYDAAAMLwCCU=');
+var
+  foodCount : Integer;
+  p : Tpoint
+procedure declarePlayers();
+begin
+  players.setup(['91death1'], 'swag');
+  currentPlayer := 0;
+  disableIPScreenshots:= true;
+  with players[0] do
+  begin
+    integers[0] := 50;
+    integers[1] := 25;
+    booleans[0] := true;
+    world:= 80;
+  end;
+
+end;
+Procedure MiniBreaker;
+Begin
+
+  Case Random (100) Of
+    1: Wait(40000 + random(7400));
+    2: Wait(25500 + random(8550));
+    3: Wait(60040 + random(6759));
+    4: Wait(20400 + random(2549));
+
+  end;
+end;
+Function Antiban: Boolean;
+var
+  I: Integer;
+begin
+  I := Random(600);
+  Case I Of
+    1..3:
+      begin
+        MouseOffClient(Random(4));
+        Wait(GaussRangeInt(1000,7000));
+        Result := True;
+      end;
+    4..7:
+      begin
+        hoverSkill(Skill_Firemaking);
+        Wait(GaussRangeInt(1000,2000));
+        TabBackpack.Open;
+        Result := True;
+      end;
+    8..50:
+      begin
+        mousemovingobject;
+        Result := True;
+      end;
+    51..200:
+      begin
+        SleepAndMoveMouse(GaussRangeInt(1000,2500));
+        Result:=True;
+      end;
+    201..400:
+      begin
+        MouseOffClient(Random(4));
+        Wait(GaussRangeInt(1000,7000));
+        Result:=True;
+      end;
+    401..600:
+      begin
+        Wait(RandomRange(250, 1500));
+        Result:=True;
+      end;
+  end;
+  if TabBackpack.Count>5 then
+    Wait(GaussRangeInt(3500, 3600));
+end;
+Procedure typeStuff();
+var
+    i: integer;
+    s: TStringArray;
+begin
+  s := ['flr0ofl nice try', 'lol', 'u ok', 'fr0of', 'permed', 'l0l',
+        'lmao', 'fr0', 'aha', 'wat u doin lool', 'wb', 'hi', 'wzzup',
+        'nerds', 'cell is king']; //type messages here
+  i := random(length(s) - 1);
+  WriteLn('displaying ' + intToStr(i) + 'th message');
+    try
+      TypeByte(VK_ENTER);
+      wait(randomRange(250, 750));
+      SendKeys(s[i], 50+Random(150), 30+Random(200));
+      Wait(20+Random(30));
+      TypeByte(VK_ENTER);
+    except
+      ShowMessage('access violation');
+      exit();
+    end
+End;
+function bank(): boolean
+var
+  p : Tpoint;
+begin
+  if (minimap.findSymbol(p, MM_SYMBOL_BANK, minimap.getBounds)) then
+  begin
+    bankScreen.open(BANK_CHEST_GROTTO);
+    if bankScreen.clickButton(BANK_BUTTON_PRESET_2) then
+    begin
+    bankScreen.close();
+    exit(True);
+    end
+  end else
+    result := False;
+end
+
+function portWalk(): boolean
+var
+  x, y, ctr : integer;
+begin
+  MiniMap.ClickCompass;
+  repeat
+  inc(ctr);
+  if mainscreen.findObject(x, y, 12830682, 2, ['ree-for-all (safe)'], MOUSE_RIGHT) or
+     mainscreen.findObject(x, y, 10463160, 2, ['ree-for-all (safe)'], MOUSE_RIGHT) or
+     mainscreen.findObject(x, y, 9740210, 2, ['ree-for-all (safe)'], MOUSE_RIGHT) then
+  begin
+    writeLn('walking in');
+    Wait(RandomRange(500, 1000));
+    chooseOption.select(['nter']);
+    Wait(RandomRange(3000, 5500));
+    mainScreen.setAngle(MS_ANGLE_HIGH);
+    exit(True);
+  end
+  until ctr > 5;
+  exit(False);
+End;
+function insidePort(): boolean
+var
+  i : integer;
+begin
+  i := random(2);
+  if i = 0 then
+  begin
+    mouseBox(IntToBox(251, 140, 296, 100), MOUSE_LEFT);
+  end else begin
+    mouseBox(IntToBox(280, 248, 290, 260), MOUSE_LEFT);
+  end
+  wait(randomrange(500, 750));
+  tabBackPack.open();
+  actionBar.clickSlot(13);
+  wait(randomRANGE(2000, 3500));
+  toolScreen.select('Tinderbox');
+  writeLn('lighted log');
+  wait(RandomRange(2000, 2500));
+  exit(True);
+end
+function cookFood(): boolean
+var
+  x, y, ctr : integer
+begin
+  tabBackPack.mouseSlot(randomRange(10, 27), MOUSE_LEFT);
+  wait(200);
+  repeat
+  inc(ctr);
+  mouseBox(intToBox(280, 225, 290, 240), MOUSE_MOVE);
+  if ctr = 8 then mouseBox(intToBox(280, 200, 290, 215), MOUSE_MOVE);
+  if isMouseOverText(['Fire']) then
+  Begin
+    fastClick(MOUSE_LEFT);
+    writeln('cooking');
+    exit(True);
+  end                                                                           //280 248  290 260
+  until ctr > 10;
+  tabBackPack.mouseSlot(randomRange(10, 27), MOUSE_LEFT);
+  exit(False);
+end
+procedure waitWhileCooking;
+var
+  timer: TTimeMarker;
+begin
+  timer.start();
+  wait(randomRange(1000, 1750));
+  if isMouseOverText(['Use Raw tuna -> Non-']) then exit();
+  productionScreen.clickStart();
+  while timer.getTime() < randomRange(70000, 80000) do
+    if (countColorTolerance(13278759, intToBox(244, 197, 335, 223), 44) > 145) then
+      exit()
+    else case random(1200) of
+      0..8: sleepAndMoveMouse(random(5000));
+      9..20: smallRandomMouse();
+      21..22: hoverSkill(SKILL_COOKING);
+      23..24: begin if random(4) = 1 then antiban(); end
+      26..27: begin if random (5) = 1 then typeStuff(); end
+      28..29: begin if random (8) = 4 then miniBreaker(); end
+      else wait(100);
+    end;
+  tabBackPack.open();
+end;
+function afterCooking(): boolean
+var
+  x, y: integer;
+  p : TPoint;
+begin
+  mainScreen.setAngle(MS_ANGLE_LOW);
+  miniMap.setAngle(MM_DIRECTION_SOUTH);
+  wait(742);
+  if mainscreen.findObject(x, y, 1592115, 3, ['eave Portal'], MOUSE_RIGHT) or
+     mainscreen.findObject(x, y, 2382401, 3, ['eave Portal'], MOUSE_RIGHT) or
+     mainscreen.findObject(x, y, 1854518, 3, ['eave Portal'], MOUSE_RIGHT) then
+  begin
+    chooseOption.select(['Leave']);                                                         //250 312 285 320
+    writeLn('leaving portal');
+    wait(random(1000));
+    miniMap.clickCompass();
+    wait(randomRange(2500, 4000));
+    mouseBox(intToBox(738, 125, 730, 120), MOUSE_LEFT);
+    writeLn('Walked to bank');
+    wait(randomRange(4000, 6000));
+    miniMap.clickCompass();
+    exit(True);
+  end else
+    result := False;
+    fastClick(MOUSE_RIGHT);
+    chooseOption.select(['Leave']);
+    exit(True);
+end
+procedure mainLoop();
+begin
+  if not (minimap.findSymbol(p, MM_SYMBOL_BANK, minimap.getBounds)) then
+    if afterCooking() then
+      if bank() then
+        if portWalk() then
+          if insidePort() then
+            if cookFood() then
+              waitWhileCooking();
+end
+procedure setUp();
+begin
+  clearDebug();
+  declarePlayers();
+  disableSRLDebug := not players[currentPlayer].booleans[0];
+  disableIPScreenshots := true;
+  disableSRLLog := true;
+  setupSRL();
+  DisableSRLDebug:=True;
+end
+begin
+  setUp();
+  players[currentPlayer].login();
+  wait(randomRange(4000, 6000));
+  mainScreen.setAngle(MS_ANGLE_HIGH);
+  exitTreasure();
+  mainScreen.setZoom(true);
+  repeat
+    mainLoop();
+    foodCount := foodCount + 28;
+    WriteLn('We have cooked ' + intToStr(foodCount) + ' fish | CELL');
+  until foodCount > 5000;
+end.   
